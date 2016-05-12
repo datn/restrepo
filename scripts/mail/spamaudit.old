@@ -1,0 +1,203 @@
+#!/bin/bash
+
+cd /var/tmp/sent || exit 1
+
+
+echo "First, take a look at the top NOQUEUE senders..."
+LATEST=`ls -1rt /var/log/mqueue/ | tail -1`
+LATEST="/var/log/mqueue/$LATEST"
+less $LATEST
+$HOME/bin/analyze-noqueue
+echo ""
+
+echo "Next, checking the domains of lengthily deferred mail..."
+
+if [ -f /var/tmp/sent/hahawow ]
+then
+	HAHAWOW=`cat /var/tmp/sent/hahawow | sort | uniq`
+	if [ "x$HAHAWOW" != "x" ]
+	then
+		for MUP in `echo "$HAHAWOW"`
+		do
+			echo -n "Mark messages from $MUP as spam?:"
+			read DECIDE
+			case $DECIDE in
+				[y])
+					for SPEEN in `grep -l $MUP /var/tmp/sent/out.*`
+					do
+						sa-learn --spam $SPEEN
+						cat $SPEEN | mail -s "Spam" submit
+						rm $SPEEN
+					done
+					egrep -v "^${MUP}$" /var/tmp/sent/hahawow > /tmp/hahawow; mv /tmp/hahawow /var/tmp/sent/hahawow
+				;;
+				[*])
+					continue
+				;;
+			esac	
+		done	
+	rm /var/tmp/sent/hahawow
+	fi
+fi
+
+#echo ""
+#echo "Next, checking through mails with spam level 2 or 3..."
+#/home/filter/bin/belowthreshold
+
+echo ""
+echo "Next, removing already-approved domain mail..."
+for I in facebookmail.com bounce.twitter.com noreply.github.com 
+do
+	echo "$I:"
+	for J in `grep -l $I out.*`; do 
+		#sa-learn --ham $J
+		rm $J
+	done
+done
+echo ""
+echo "Finally, examining sent mail..."
+
+SEEN=`cat seen | sort`
+ALL=`egrep -Li 'elided' out.*`
+
+# privacy
+#ALL="$ALL"$'\n'
+#for I in `egrep 'spam.*result:.\..[2|3]' /var/log/mail.log | cut -d@ -f2 | cut -d\> -f1 | sort | uniq`
+#do
+#	for J in `grep -l $I /var/tmp/sent/out.*`
+#	do
+#                JIMPS="`basename $J`"$'\n'
+##		ALL+=$JIMPS
+#	done
+#done
+
+#echo "$ALL"
+#exit 1
+TODO=`comm -13 <(echo "$SEEN") <(echo "$ALL"|sort)`
+TODO="$TODO /dev/null"
+
+for I in `echo "$TODO"`
+do
+	
+	FRUM=`grep -i ^From: $I`
+	TOO=`grep -i ^To: $I`
+	RECIP=`echo $TOO | cut -d\<  -f2 | cut -d\> -f1`
+	if [ "x$RECIP" = "x" ]
+	then 
+		:
+	else
+        	if [ "${RECIP}" = "bad.org" -o "${RECIP}" = "worse" -o "${RECIP}" = "worst" ]
+        	then
+                	SUBDGE="Subject elided"
+        	else
+			SUBDGE=`grep -i ^Subject: $I`
+        	fi
+        fi
+	DAYTEH=`grep -i ^Date: $I`
+	#cat $I
+	if [ $I != "/dev/null" ]
+	then
+		echo "$I"
+		echo "$FRUM"
+		echo "$TOO"
+		echo "$SUBDGE"
+		echo "$DAYTEH"
+	fi
+	if [ $I == "/dev/null" ]
+		then 
+			WUT="q"
+		else
+			echo ""
+			echo -n  "[s]pam, [h]am, [i]gnore it forever, do it [l]ater, [p]urge old messages or [q]uit? " 
+			read WUT
+	fi
+
+	case $WUT in
+		[sS])
+#			echo "Telling spamassassin that $I is spam..."
+#			sa-learn --spam $I 
+			SPAMS=("${SPAMS[@]}" $I)
+#			echo $I >> seen
+		;;
+		[hH])
+#			echo "Telling spamassassin that $I is ham..."
+#			sa-learn --ham $I
+			HAMS=("${HAMS[@]}" $I)
+#			echo $I >> seen
+		;;
+		[lL])
+			echo "Skipping..."
+			sleep 1
+			continue
+		;;
+		[lL])
+			echo "Ignoring forever"
+			echo $I >> seen
+			sleep 1
+			continue
+		;;
+		[pP])
+			echo -n "Older than a [d]ay or a [w]eek?  (Remember that older than a DAY is MORE) Or fuck it: "
+			read LETTAH
+			case $LETTAH in
+				[dD])
+					DAZE=1
+				;;
+				[wW])
+					DAZE=7
+				;;
+				*)
+					echo "Byeee"
+					exit 0
+				;;
+			esac
+#			OLD=`find /var/tmp/sent -mtime +$DAZE | sed -e 's/.var.tmp.sent.//' | sort -n`
+#			TODEL=`comm -12 <(echo "$OLD") <(echo "$SEEN")`
+			TODEL=`find /var/tmp/sent -mtime +$DAZE`
+			WC=`echo -n "$TODEL" | wc -l`
+			if [[ $WC -eq 0 ]] 
+			then
+				echo "Nothing to purge!"
+				echo ""
+			else
+				echo -n "About to delete the following files:"
+				echo "$TODEL"
+				echo -n "You sure? "
+				read YESH
+				case $YESH in
+					[yY])
+						for I in `echo "$TODEL"`
+						do
+							rm $I && grep -v "${I}$" /var/tmp/sent/seen > /var/tmp/sent/seen.o; mv /var/tmp/sent/seen.o /var/tmp/sent/seen
+						done 
+					;;
+					*)
+						echo "Chicken!"
+					;;
+				esac
+			fi
+			exit 0
+		;;
+		*)
+			for FUCK in "${SPAMS[@]}"
+			do
+				echo "Marking $FUCK as spam."
+				sa-learn --spam $FUCK
+				DETA=`date -R`
+				cat $FUCK | mail -s "Spam from $DETA" submit.elided
+				echo $FUCK >> seen
+			done
+
+			for YAY in "${HAMS[@]}"
+			do
+				echo "Marking $YAY as ham."
+				sa-learn --ham $YAY
+				echo $YAY >> seen
+			done
+
+			echo "Byeeee"
+			exit 0
+		;;
+	esac
+done
+cd -
