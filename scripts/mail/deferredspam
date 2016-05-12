@@ -1,0 +1,8 @@
+#!/bin/bash
+if [ $1"x" = "x" ]
+then
+	echo "Need a postfix queue id."
+	exit 1
+fi
+sudo /usr/sbin/postcat -q $1 | sa-learn --spam
+

@@ -1,0 +1,7 @@
+/var/log/s3_backup.log {
+  weekly
+  rotate 26
+  compress
+  delaycompress
+  notifempty
+}

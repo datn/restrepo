@@ -1,0 +1,20 @@
+#!/bin/bash
+# notify when there are too many mails deferred
+OUTPUT=`mailq`
+
+# prelim candidates
+HAHAWOW=`echo "$OUTPUT" | grep @ | grep -v '^\ ' | cut -d@ -f2`
+
+if [ "x$HAHAWOW" != "x" ]
+then
+	echo "$HAHAWOW" >> /var/tmp/sent/hahawow
+	LOGLINE=`echo -n $HAHAWOW `
+	LOGLINE="writing to /var/tmp/sent/hahawow: $LOGLINE"
+	echo $LOGLINE | logger -p mail.info -t deferalert
+
+	NUMBER=`echo "$HAHAWOW" | wc -l`
+	if [ $NUMBER -gt 5 ]
+	then
+		echo "$OUTPUT" | mail -s "Deferral alert: $NUMBER" email
+	fi
+fi

@@ -1,0 +1,48 @@
+#!/bin/bash
+#
+BACKUPDIR=<%= node[:s3_backup][:backuppath] %>
+HOSTNAME=`hostname`
+DATESTAMP=`date +%Y-%m-%d_%H-%M-%S`
+MOUNT="<%= node[:s3fs][:mountpoint] %>"
+
+die() {
+    [[ $1 ]] || {
+        printf >&2 -- 'Usage:\n\tdie <message> [return code]\n'
+        [[ $- == *i* ]] && return 1 || exit 1
+    }
+
+    printf >&2 -- '%s' "$1"
+    echo ""
+    exit ${2:-1}
+}
+
+/usr/local/bin/mount-s3.sh $MOUNT || die "Backup terminated." $?
+
+[ -d $BACKUPDIR/data/$HOSTNAME/ ] || mkdir -p $BACKUPDIR/data/$HOSTNAME/
+
+for I in <%= node[:s3_backup][:dirs] %>
+do
+# sanity checking
+echo $I | egrep -q '^/'
+ABSOLUTE=$?
+if [ ! -d $I ]
+then
+        echo "ERROR: $I is not a directory. Skipping"
+        continue
+elif [ $ABSOLUTE -ne 0 ]
+then
+        echo "ERROR: $I is not an absolute path. Skipping"
+        continue
+elif [[ $I == "/" ]]
+then
+        echo "ERROR: Sorry, won't back up /. Skipping"
+        continue
+else
+	CONVERTEDPATH=`echo $I | tr '\/' '-' | cut -d- -f2-`
+	echo "Now backing up $I to S3."
+	tar cf - $I | gzip - > $BACKUPDIR/data/$HOSTNAME/${DATESTAMP}_${CONVERTEDPATH}.tgz || die "ERROR: tar exited with $?" $?
+fi
+done
+
+/usr/local/bin/umount-s3.sh $MOUNT || die "Unmount failed." $?
+

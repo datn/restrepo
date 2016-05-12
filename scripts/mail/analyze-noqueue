@@ -1,0 +1,14 @@
+LINES=$(grep NOQUEUE /var/log/mail.log | awk '{print $10}' | cut -d[ -f2 | cut -d] -f1)
+for I in `echo ${LINES}`
+do
+if ( echo "$I" | egrep  -q '^\[' )
+then
+	LINE=`echo $I | cut -d[ -f2 | cut -d] -f1`
+else
+	LINE="${I}"
+fi
+NEWLINES+="$LINE"
+NEWLINES+=$'\n'
+done
+OUTPUT=$(echo "Top 10 offending IPs"; echo "$NEWLINES" | grep -v '^$' | sort -n | uniq -c | sort -rn | head -10)
+echo "$OUTPUT" | less

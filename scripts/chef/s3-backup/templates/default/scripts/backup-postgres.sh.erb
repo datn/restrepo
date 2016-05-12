@@ -1,0 +1,35 @@
+#!/bin/bash
+## runs as user postgres out of cron.d
+#
+DATE=`date +%Y%m%d%H%M`
+HOSTNAME=`hostname`
+BACKUPPATH=<%= node[:s3_backup][:backuppath] %>
+MOUNT=<%= node[:s3fs][:mountpoint] %>
+
+die() {
+    [[ $1 ]] || {
+        printf >&2 -- 'Usage:\n\tdie <message> [return code]\n'
+        [[ $- == *i* ]] && return 1 || exit 1
+    }
+
+    printf >&2 -- '%s' "$1"
+    echo ""
+    exit ${2:-1}
+}
+
+/usr/local/bin/mount-s3.sh $MOUNT || die "Backup terminated." $?
+
+[ -d $BACKUPPATH/postgres/$HOSTNAME/ ] || mkdir -p $BACKUPPATH/postgres/$HOSTNAME/
+
+# freakin' S3 permissions
+chown postgres. $BACKUPPATH/postgres/
+chown postgres. $BACKUPPATH/postgres/$HOSTNAME/
+
+for I in <%= node[:s3_backup][:postgres][:dbs] %>
+do 
+	echo "Backing up postgres database $I to S3."
+	su - postgres -c "pg_dump -Ft -U postgres $I | gzip -c > $BACKUPPATH/postgres/$HOSTNAME/$I-$DATE.psql.gz"
+done
+
+/usr/local/bin/umount-s3.sh $MOUNT || die "Unmount failed." $?
+

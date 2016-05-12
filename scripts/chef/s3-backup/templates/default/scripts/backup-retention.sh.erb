@@ -1,0 +1,4 @@
+#!/bin/bash
+BUPPATH=<%= node[:s3_backup][:backuppath] %>
+RETAINDAYS=<%= node[:s3_backup][:postgres][:retentiondays] %>
+find $BUPPATH -ctime +$RETAINDAYS -print0 | xargs -0 rm -rf >> /var/log/s3_backup.log 2>&1

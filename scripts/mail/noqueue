@@ -1,0 +1,5 @@
+#!/bin/bash
+# keep a list of deferred domains
+DATE=`date +%Y%m%d%H%M`
+[ -d /var/log/mqueue/ ] || mkdir /var/log/mqueue/ 
+grep NOQUEUE /var/log/mail.log | grep -o 'from=..........\?*>' | cut -d\  -f1 |sort | uniq -c | sort -rn > /var/log/mqueue/noqueue-$DATE.log

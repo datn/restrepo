@@ -1,0 +1,94 @@
+#!/bin/bash
+# not fully tested
+#
+BACKUPDIR=<%= node[:s3_backup][:backuppath] %>
+HOSTNAME=`hostname`
+
+die() {
+    [[ $1 ]] || {
+        printf >&2 -- 'Usage:\n\tdie <message> [return code]\n'
+        [[ $- == *i* ]] && return 1 || exit 1
+    }
+
+    printf >&2 -- '%s' "$1"
+    echo ""
+    exit ${2:-1}
+}
+
+mount | grep -q ^s3fs
+MOUNTED=$?
+if [ $MOUNTED -eq 1 ]
+then
+
+mount <%= node[:s3fs][:mountpoint] %>
+RESULT=$?
+if [ $RESULT -ne 0 ]
+then
+        echo "Mounting <%= node[:s3fs][:mountpoint] %> on s3fs exited nonzero: $RESULT -- exiting."
+exit 256
+fi
+
+fi
+
+echo "Checking S3 for most recent MySQL backup file for this host." 
+MOSTRECENT=`ls -lrt $BACKUPDIR/mysql/$HOSTNAME | tail -1`
+RECENTFILE=`echo $MOSTRECENT | awk '{print $9}'`
+RECENTNAME=$BACKUPDIR/mysql/$HOSTNAME/$RECENTFILE
+file $RECENTNAME | grep -q gzip
+RESULT=$?
+if [ $RESULT -ne 0  ]
+then
+	die "$RECENTNAME is not a gzip file. You'll have to restore manually." 1
+fi
+RECENTFILESTRIP=`echo $RECENTFILE | rev | cut -d. -f2- | rev`
+
+echo -n "Most recent backup is "
+echo $MOSTRECENT | awk '{print $9", whose compressed size is "$5"."}'
+LOOPY=0
+while [ $LOOPY -eq 0 ]
+do
+
+echo -n "Do you want to extract this backup to the local disk (might take a while)? [y/N]"
+read EXTRACTYES
+if [[ $EXTRACTYES == "" ]]
+then
+	EXTRACTYES="N"
+fi
+if [[ $EXTRACTYES == "y" ]]
+then
+	echo "Calculating uncompressed size of backup (may take several minutes):"
+	RECENTRAWBYTES=`pigz -lt $RECENTNAME | grep $BACKUPDIR | awk '{print $2}'`
+	RECENTRAW=`echo $RECENTRAWBYTES / 1024 | bc`
+	echo "Uncompressed size of backup is $RECENTRAW blocks."
+	echo -n "Extract to: (absolute path) [/var/tmp]"
+	read EXTRACTPATH
+	if [[ $EXTRACTPATH = "" ]]
+	then
+		EXTRACTPATH="/var/tmp"
+	fi
+	[ -d $EXTRACTPATH ] || die "That's not a valid directory." 1
+	mkdir -p $EXTRACTPATH/$RECENTFILESTRIP || die "Can't create directory $EXTRACTPATH/$RECENTFILESTRIP.\N" 1
+	EXTRACTFREE=`df $EXTRACTPATH | grep ^/ | awk '{print $4}'`
+	if [ $EXTRACTFREE -lt $RECENTRAW ]
+	then 
+		echo "Not enough space: $EXTRACTPATH has $EXTRACTFREE blocks free, uncompressed size of backup is $RECENTRAW blocks."
+	else
+		echo "Okay, extracting $RECENTNAME to $EXTRACTPATH/$RECENTFILESTRIP"
+		(cd $EXTRACTPATH/$RECENTFILESTRIP; tar --checkpoint=100000 --ignore-zeros -xf $RECENTNAME; innobackupex --apply-log .)
+		LOOPY=1
+	fi
+else
+	LOOPY=1
+fi
+done
+
+
+
+umount <%= node[:s3fs][:mountpoint] %>
+RESULT=$?
+if [ $RESULT -ne 0 ]
+then
+        echo "Unmounting <%= node[:s3fs][:mountpoint] %> on s3fs exited nonzero: $RESULT -- exiting."
+exit 256
+fi
+

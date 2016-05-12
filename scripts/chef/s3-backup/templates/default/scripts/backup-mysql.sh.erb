@@ -1,0 +1,33 @@
+#!/bin/bash
+#
+BACKUPDIR=<%= node[:s3_backup][:backuppath] %>
+SPLITSIZE=<%= node[:s3_backup][:splitsize] %>
+HOSTNAME=`hostname`
+DATESTAMP=`date +%Y-%m-%d_%H-%M-%S`
+MOUNT=<%= node[:s3fs][:mountpoint] %>
+
+die() {
+    [[ $1 ]] || {
+        printf >&2 -- 'Usage:\n\tdie <message> [return code]\n'
+        [[ $- == *i* ]] && return 1 || exit 1
+    }
+
+    printf >&2 -- '%s' "$1"
+    echo ""
+    exit ${2:-1}
+}
+
+df | grep -q ^s3fs.*$MOUNT$
+MOUNTED=$?
+if [ $MOUNTED -eq 0 ]
+then
+	echo "WARN: $MOUNT already mounted."
+else
+	/usr/local/bin/mount-s3.sh $MOUNT || die "Backup terminated." $?
+fi
+
+[ -d $BACKUPDIR/mysql/$HOSTNAME/ ] || mkdir -p $BACKUPDIR/mysql/$HOSTNAME/
+
+( cd $BACKUPDIR/mysql/$HOSTNAME/ || die "Can't cd to $BACKUPDIR/mysql/$HOSTNAME/: $?" $?; /usr/bin/innobackupex --no-version-check --slave-info --safe-slave-backup --stream=tar - | gzip - | split -b$SPLITSIZE -d - $DATESTAMP-mysql.tgz )
+
+/usr/local/bin/umount-s3.sh $MOUNT || die "Unmount failed." $?
