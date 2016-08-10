@@ -1,0 +1,19 @@
+#!/bin/bash
+FILEPATH="$HOME/secure"
+FILENAME=".passwords"
+KEYNAME="yourgpgkeyemail@example.com"
+rm -f /tmp/$FILENAME
+gpg < $FILEPATH/$FILENAME.gpg > /tmp/$FILENAME
+vi /tmp/$FILENAME
+read -p "Save? [y/N]" SEVA
+echo -e "\n"
+case $SEVA in
+        y|Y)
+        cp $FILEPATH/$FILENAME.gpg $FILEPATH/$FILENAME.gpg.bak
+                gpg -r $KEYNAME -e /tmp/$FILENAME -o $FILEPATH/$FILENAME.gpg
+                ;;
+        *)
+                echo "Not saved."
+                ;;
+esac
+rm -f /tmp/$FILENAME
