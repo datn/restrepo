@@ -1,0 +1,34 @@
+jobs:
+- name: job-github-release
+  public: true
+  serial: true
+  plan:
+  - get: github-release-spiff
+  - task: ls
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source: {repository: ubuntu, tag: "14.04"}
+      inputs:
+      - name: github-release-spiff
+      run:
+        path: ls
+        args: ["-opR", "."]
+  - task: version
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source: {repository: ubuntu, tag: "14.04"}
+      inputs:
+      - name: github-release-spiff
+      run:
+        path: cat
+        args: [github-release-spiff/version]
+resources:
+- name: github-release-spiff
+  type: github-release
+  source:
+    user: cloudfoundry-incubator
+    repository: spiff
