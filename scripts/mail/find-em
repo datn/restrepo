@@ -1,0 +1,10 @@
+# decommissioning wildcard domains
+DOMAIN=$1
+HOSPUH=""
+for I in /var/log/mail.log*z
+do
+        SPLILF=$(zcat $I | egrep -o orig_to=.*?$DOMAIN | cut -d \< -f2)
+        FMORTN=$(zcat $I | egrep -v orig_to | egrep -o to=.*?$DOMAIN | cut -d \< -f2)
+        HOSPUH=`printf "%s\n" "$SPLILF" "$FMORTN" "$HOSPUH"`
+done
+echo "$HOSPUH" | sort | uniq > $DOMAIN-uniq-addys
