@@ -1,0 +1,119 @@
+#!/bin/bash
+# presumes all mail is copied to /var/tmp/sent by postfix
+cd /var/tmp/sent
+NUMBER=(/var/tmp/sent/out*)
+ADDRESSES="you@example.com|me@example.com"
+DOMAINS="facebook.com|google.com|yahoo.com"
+if [ -e "${NUMBER[0]}" ]
+then 
+	NO=`egrep -li "${ADDRESSES}" out.*`
+	SCOOL=`egrep -li "${DOMAINS}" out.*`
+	NONUM=`echo "$NO" | grep -v '^$'| wc -l`
+	SCOOLNUM=`echo "$SCOOL" | grep -v '^$' | wc -l`
+fi
+if [ "x$1" = "x-v" ]
+then
+	echo -n "Total: "
+	if [ ! -e "${NUMBER[0]}" ]
+	then 
+		echo "0"
+		exit 15
+	fi
+	echo ${#NUMBER[@]}
+	echo -n "Invisible: "
+	echo $NONUM
+	echo -n "Pre-okayed: "
+	echo $SCOOLNUM
+	exit 255
+fi
+if [ ! -e "${NUMBER[0]}" ]
+then 
+	LASTDATE=$(stat /var/tmp/sent/old/$(ls -1rt /var/tmp/sent/old | tail -1)  | grep Change | cut -d\  -f2-)
+	echo "No messages to process. Last message processed at $LASTDATE."
+	exit 31
+fi
+PLURAL=""
+if  [ ${#NUMBER[@]} -gt 1 ]
+then
+	PLURAL="s"
+fi
+echo "${#NUMBER[@]} message${PLURAL} to process."
+echo ""
+echo "Handling invisible messages (${NONUM})..."
+for I in $NO
+do
+	cat $I | egrep -q 'X-Spam-Level:.\*'
+	if [ $? = 0 ]
+	then
+		echo ""
+		echo "Submitting $I as spam and moving to old folder."
+		sendtospamcop $I
+	fi
+	mv -i $I old
+done
+NUMBER=(/var/tmp/sent/out*)
+if [ ! -e "${NUMBER[0]}" ]
+then 
+	exit 63
+fi
+echo ""
+echo "Handling pre-okayed messages (${SCOOLNUM})..."
+COUNT=0
+for I in $SCOOL
+do
+	mv -i $I old
+	((COUNT++))
+done
+if [ $COUNT -gt 0 ]
+then
+	echo ""
+	echo "Moved $COUNT pre-okayed messages to old."
+fi
+
+NUMBER=(/var/tmp/sent/out*)
+if [ ! -e "${NUMBER[0]}" ]
+then 
+	exit 127
+fi
+echo ""
+echo "Handling the rest of the messages (${#NUMBER[@]})..."
+
+for I in out.*
+do
+	echo ""
+	echo $I
+	grep -i ^From: $I | head -1
+	grep -i ^To: $I | head -1
+	grep -i ^Subject: $I | head -1
+        grep -i ^Date: $I | head -1
+	echo ""
+	echo -n "Mark $I as spam? [y/n/Q]: "
+	read SPAM
+	case $SPAM in
+	[yYsS]) 
+		SPAMS=("${SPAMS[@]}" $I)
+	;;
+	[nNhH])
+		HAMS=("${HAMS[@]}" $I)
+	;;
+	*)
+		echo "Terminating early..."
+		break
+	;;
+	esac
+done
+for DARN in "${SPAMS[@]}"
+do
+	echo "Marking, submitting and archiving $DARN as spam."
+	sa-learn --spam $DARN
+	sendtospamcop $DARN
+	mv $DARN old
+done
+for YAY in "${HAMS[@]}"
+do
+	echo "Marking and archiving $YAY as ham."
+	sa-learn --ham $YAY
+	mv $YAY old
+done
+
+cd -
