@@ -1,15 +1,19 @@
 #!/bin/bash
-# accept filename of spam to be reported
-# don't report spam older than $2 hours
-if [ "x$1" = "x" ]  
+if [ "x$1" = "x" ] || [ "x$2" = "x" ]
 then
-	echo "Which message to report?"
+	echo ""
+	echo "Usage: sendtospamcop <message> <allowable report time in hours>"
+	echo ""
 	exit 1
 fi
-MIN=`echo "${2:-9} * 60" | bc`
+MIN=`echo "$2 * 60" | bc`
 SUBMIT=`find /var/tmp/sent -mindepth 1 -maxdepth 1 -mmin -$MIN | grep $1`
 if [ "x$SUBMIT" != "x" ]
 then
+	FILEDATE=`find . -name $1 -printf '%T@\n' | cut -d. -f1`
+	NOWDATE=`date +%s`
+	HOURSSINCE=`echo "($NOWDATE - $FILEDATE) / 3600" | bc`
 	DETA=`date -R`; 
 	cat /var/tmp/sent/$1 | mail -s "Spam from $DETA" $YOUR_IDENTIFIER@spam.spamcop.net
+	echo "* Submitted $1 ($HOURSSINCE hours old) as spam."
 fi

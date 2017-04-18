@@ -1,13 +1,13 @@
 #!/bin/bash
-# presumes all mail is copied to /var/tmp/sent by postfix
 cd /var/tmp/sent
+HOURS=9
 NUMBER=(/var/tmp/sent/out*)
 ADDRESSES="you@example.com|me@example.com"
 DOMAINS="facebook.com|google.com|yahoo.com"
 if [ -e "${NUMBER[0]}" ]
-then 
-	NO=`egrep -li "${ADDRESSES}" out.*`
-	SCOOL=`egrep -li "${DOMAINS}" out.*`
+then
+        NO=`egrep -li "${ADDRESSES}" out.*`
+        SCOOL=`egrep -li "${DOMAINS}" out.*`
 	NONUM=`echo "$NO" | grep -v '^$'| wc -l`
 	SCOOLNUM=`echo "$SCOOL" | grep -v '^$' | wc -l`
 fi
@@ -46,8 +46,8 @@ do
 	if [ $? = 0 ]
 	then
 		echo ""
-		echo "Submitting $I as spam and moving to old folder."
-		sendtospamcop $I
+		echo "Marking $I as spam and moving to old."
+		sendtospamcop $I $HOURS
 	fi
 	mv -i $I old
 done
@@ -104,9 +104,9 @@ do
 done
 for DARN in "${SPAMS[@]}"
 do
-	echo "Marking, submitting and archiving $DARN as spam."
+	echo "Marking and archiving $DARN as spam."
 	sa-learn --spam $DARN
-	sendtospamcop $DARN
+	sendtospamcop $DARN $HOURS
 	mv $DARN old
 done
 for YAY in "${HAMS[@]}"
