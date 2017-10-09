@@ -1,0 +1,18 @@
+#!/bin/bash
+CREATE_COMMAND="touch"
+DATE=`date --iso-8601=seconds`
+DOMH=`date +%w%H`
+
+# week of year
+SCHARN=`date +%V`
+
+# whether week of year is even or odd
+SPLEET=$((SCHARN %2))
+
+FILENAME="thething-${DOMH}${SPLEET}"
+
+echo "$DATE About to do the thing" | logger -t thething
+rm -f $FILENAME
+$CREATE_COMMAND $FILENAME 2>&1 >/dev/null | logger -t thething
+gzip -9 $FILENAME | logger -t thething 2>&1
+[ -e ${FILENAME}.gz ] && echo "$DATE Thing created: $FILENAME.gz" | logger -t thething
