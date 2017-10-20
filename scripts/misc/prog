@@ -1,0 +1,33 @@
+#!/bin/bash
+# print a progress bar
+# inspired by https://mastodon.social/@ckeen/98860456296214842
+
+function die() { echo -e "$@" 1>&2 ; exit 1; }
+FILL="▮"
+EMPT="▯"
+if [ $# -ne 3 ]
+then
+	die "Need three integer arguments: value, scale, number of boxes"
+fi
+for I in "$@"
+do
+	echo "$I" | egrep -q '^[0-9]+$' || die "Argument $I is not an integer."
+done 
+VALUE=$1
+SCALE=$2
+BOXES=$3
+NUMFILL=$(expr $1 \* $3 \/ $2)
+if [ $NUMFILL -gt $BOXES ]
+then
+	NUMFILL=$BOXES
+fi
+for I in $(seq 1 $BOXES)
+do
+	if [ $I -le $NUMFILL ]
+	then
+		echo -en $FILL
+	else
+		echo -en $EMPT
+	fi
+done
+echo ""
