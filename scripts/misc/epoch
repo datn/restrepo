@@ -1,0 +1,7 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+if ($ARGV[0]) { print scalar localtime($ARGV[0])."\n"; }
+else {print time()." ".localtime()."\n"}
