@@ -1,0 +1,74 @@
+#!/bin/bash
+# Dan Shick 2018
+# wrapper for ProtonVPN CLI tool https://github.com/ProtonVPN/protonvpn-cli
+# handles the frequent initial failures problem
+# sets a default target to avoid the nightmarish ncurses selection list
+# also accepts a target as an argument if you know onw by heart and backslash-escape the #
+DEFTARGET="IS-ES#1"
+OPTION="-c"
+function die() { echo -e "$@" 1>&2 ; exit 1; }
+function running {
+	RESULT=`sudo protonvpn-cli -status | grep -oP '(?<=ProtonVPN.Status.:\ ).*'`
+	echo "$RESULT"
+	case $RESULT in
+		Running)
+		return 0
+		;;
+		*)
+		return 1
+		;;
+	esac
+}
+function cause {
+	        die "** ProtonVPN is in a $RESULT state. **"
+	}
+if [ "x$1" != "x" ]
+then
+	case $1 in
+		"-d")
+			RESULT=$(running)
+			ECODE=$?
+			if [ $ECODE -eq 0 ]
+			then
+				sudo protonvpn-cli -disconnect && exit 0
+			else
+				cause
+			fi
+			;;
+		"-s")
+			sudo protonvpn-cli -status
+			exit 0
+			;;
+		"-r")
+			OPTION=$1
+			;;
+		[A-Z]*)
+			;;
+		*)
+			die "Unknown option $1."
+			;;
+	esac
+fi
+
+if [ $OPTION == "-r" ]
+then
+	TARGET=""
+else
+	TARGET=${1:-$DEFTARGET}
+fi
+
+RESULT=$(running)
+ECODE=$?
+if [ $ECODE -eq 0 ]
+then
+	cause
+fi
+sudo protonvpn-cli -update
+RESULT=$(running)
+ECODE=$?
+while [ $ECODE -ne 0 ]
+do
+	sudo protonvpn-cli $OPTION $TARGET tcp
+	RESULT=$(running)
+	ECODE=$?
+done
