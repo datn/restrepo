@@ -1,0 +1,51 @@
+#!/bin/bash
+
+function die() { echo -e "$@" 1>&2 ; exit 1; }
+
+if [ "x$1" == "x" ]
+then
+        die "Need a filename for input."
+fi
+
+MAGICFILE=$1
+MAGICBASE=`basename $MAGICFILE`
+INDEXFILE="/var/tmp/.lrscramble.$MAGICBASE"
+
+if ! [ -e $MAGICFILE ]
+then
+	die "No such file."
+fi
+
+
+LENTH=`wc -l $MAGICFILE | cut -d\  -f1`
+
+function reshuffle() {
+	for I in $(seq 1 $LENTH)
+	do
+		linez=( "${linez[@]}" $I )
+	done
+	linez=($(shuf -e "${linez[@]}"))
+	printf "%s\n" "${linez[@]}" > $INDEXFILE
+}
+
+[ -e $INDEXFILE ] || reshuffle
+NUMLINES=`wc -l $INDEXFILE | cut -d\  -f1`
+NUMCHARS=`wc -c $INDEXFILE | cut -d\  -f1`
+if [[ $NUMLINES -lt 1 ]] || [[ $NUMCHARS -lt 2 ]]
+then
+	echo "Last invocation. Starting over."
+	reshuffle
+fi
+
+function nextnumber() {
+	readarray -t scrambles < $INDEXFILE
+	printf "%s\n" "${scrambles[0]}"
+	scrambles=("${scrambles[@]:1}")
+	printf "%s\n" "${scrambles[@]}" > $INDEXFILE
+}
+
+function pline() {
+	head -$1 $MAGICFILE | tail -1
+}
+
+pline `nextnumber`
